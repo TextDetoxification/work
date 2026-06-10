@@ -1,0 +1,25 @@
+# ── Data ──
+data/
+
+# ── Models ──
+models/
+mt5_detox_lora/
+*.pt
+*.bin
+*.safetensors
+
+# ── Cache ──
+__pycache__/
+*.pyc
+*.pyo
+toxic_lexicon_cache/
+.cache/
+
+# ── IDE ──
+.vscode/
+.idea/
+
+# ── Misc ──
+logs/
+*.zip
+.claude/
