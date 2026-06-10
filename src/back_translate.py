@@ -39,7 +39,11 @@ class BackTranslator:
         tgt_code = self.to_nllb_code(tgt_lang)
         self.trans_tokenizer.src_lang = src_code
         inputs = self.trans_tokenizer(text, return_tensors="pt", truncation=True, max_length=max_length).to(self.device)
-        forced_bos = self.trans_tokenizer.lang_code_to_id[tgt_code]
+        # NLLB forced_bos_token_id: 兼容不同 transformers 版本
+        try:
+            forced_bos = self.trans_tokenizer.lang_code_to_id[tgt_code]
+        except AttributeError:
+            forced_bos = self.trans_tokenizer.convert_tokens_to_ids(tgt_code)
         with torch.no_grad():
             out = self.trans_model.generate(**inputs, forced_bos_token_id=forced_bos,
                                             max_length=max_length, num_beams=num_beams, early_stopping=True)
