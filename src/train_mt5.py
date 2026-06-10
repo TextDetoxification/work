@@ -4,7 +4,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import torch, torch.nn as nn, torch.nn.functional as F, numpy as np
 from argparse import ArgumentParser
-from datasets import load_dataset, concatenate_datasets, Dataset, DatasetDict
+from datasets import concatenate_datasets, Dataset
 from transformers import (
     AutoTokenizer, AutoModelForSeq2SeqLM, Seq2SeqTrainingArguments,
     Seq2SeqTrainer, DataCollatorForSeq2Seq, EarlyStoppingCallback,
@@ -110,16 +110,29 @@ class ContrastiveSeq2SeqTrainer(Seq2SeqTrainer):
         return (total, outputs) if return_outputs else total
 
 
+import pandas as pd
+
+DATA_DIR = "./data"
+
+
 def load_parallel_data(languages=None):
-    ds = load_dataset("textdetox/multilingual_paradetox")
-    if languages is not None:
-        ds = DatasetDict({k: v for k, v in ds.items() if k in languages})
-    all_data = [{"lang": lang, "toxic": r["toxic_sentence"], "neutral": r["neutral_sentence"]}
-                for lang in ds for r in ds[lang]]
+    """从本地 CSV 加载多语言平行去毒数据，按语言分层 80/20 切分。"""
+    data_dir = Path(DATA_DIR)
+    all_data = []
+    for csv_path in sorted(data_dir.glob("*.csv")):
+        lang = csv_path.stem
+        if lang == "all_languages":
+            continue
+        if languages is not None and lang not in languages:
+            continue
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            all_data.append({"lang": lang, "toxic": row["toxic_sentence"],
+                             "neutral": row["neutral_sentence"]})
     full_ds = Dataset.from_list(all_data)
     from datasets import ClassLabel
     full_ds = full_ds.cast_column("lang", ClassLabel(names=sorted(set(full_ds["lang"]))))
-    print(f"Loaded {len(full_ds)} samples across {len(ds)} languages")
+    print(f"Loaded {len(full_ds)} samples from {len(set(d['lang'] for d in all_data))} languages")
     return full_ds.train_test_split(test_size=0.2, seed=42, stratify_by_column="lang")
 
 
@@ -274,8 +287,9 @@ def train(args=None):
     tokenizer.save_pretrained(final_dir)
     if proj_head is not None:
         torch.save(proj_head.state_dict(), os.path.join(final_dir, "proj_head.pt"))
+    langs_used = args.languages or sorted({p.stem for p in Path(DATA_DIR).glob("*.csv") if p.stem != "all_languages"})
     config = {"base_model": args.model, "lora_r": args.lora_r, "lora_alpha": args.lora_alpha,
-              "languages": args.languages or list(load_dataset("textdetox/multilingual_paradetox").keys()),
+              "languages": langs_used,
               "contrastive_weight": args.contrastive_weight, "proj_dim": args.proj_dim if use_contrastive else None}
     with open(os.path.join(final_dir, "training_config.json"), "w", encoding="utf-8") as f:
         json.dump(config, f, ensure_ascii=False, indent=2)
