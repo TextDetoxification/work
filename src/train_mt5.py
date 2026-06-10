@@ -223,7 +223,7 @@ def train(args=None):
         tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForSeq2SeqLM.from_pretrained(
         model_path,
-        dtype=torch.float16 if args.fp16 and device == "cuda" else torch.float32,
+        torch_dtype=torch.float16 if args.fp16 and device == "cuda" else torch.float32,
         use_safetensors=True)
 
     lora_config = LoraConfig(task_type=TaskType.SEQ_2_SEQ_LM, r=args.lora_r, lora_alpha=args.lora_alpha,

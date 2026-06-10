@@ -25,7 +25,7 @@ class BackTranslator:
         self.trans_tokenizer = AutoTokenizer.from_pretrained(nllb_model_name, src_lang="eng_Latn", tgt_lang="eng_Latn")
         self.trans_model = AutoModelForSeq2SeqLM.from_pretrained(
             nllb_model_name,
-            dtype=torch.float16 if "cuda" in self.device else torch.float32,
+            torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
             use_safetensors=True).to(self.device).eval()
         self.detox_model = self.detox_tokenizer = None
 
@@ -56,7 +56,7 @@ class BackTranslator:
         self.detox_tokenizer = AutoTokenizer.from_pretrained(base_model_path)
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
             base_model_path,
-            dtype=torch.float16 if "cuda" in self.device else torch.float32,
+            torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
             use_safetensors=True)
         self.detox_model = PeftModel.from_pretrained(base_model, model_path).merge_and_unload()
         self.detox_model.to(self.device).eval()

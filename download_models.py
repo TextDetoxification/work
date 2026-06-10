@@ -17,7 +17,7 @@ def download(key, force=False):
     save_dir.mkdir(parents=True, exist_ok=True)
     dtype = torch.float16 if torch.cuda.is_available() else torch.float32
     tokenizer = AutoTokenizer.from_pretrained(info["name"])
-    model = AutoModelForSeq2SeqLM.from_pretrained(info["name"], dtype=dtype, use_safetensors=True)
+    model = AutoModelForSeq2SeqLM.from_pretrained(info["name"], torch_dtype=dtype, use_safetensors=True)
     tokenizer.save_pretrained(str(save_dir))
     model.save_pretrained(str(save_dir))
     print(f"[{key}] done")

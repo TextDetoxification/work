@@ -15,6 +15,7 @@ def main():
     parser.add_argument("--nllb_model", default=None)
     parser.add_argument("--output", default="./data/cross_lingual_pairs.json")
     parser.add_argument("--max_per_lang", type=int, default=None)
+    parser.add_argument("--pairs_per", type=int, default=1)
     parser.add_argument("--device", default=None)
     args = parser.parse_args()
 
@@ -34,8 +35,8 @@ def main():
     print(f"Sentences: {len(sentences)} across {langs}")
 
     translator = BackTranslator(nllb_model_name=args.nllb_model, device=args.device)
-    total = len(sentences) * 14
-    print(f"Translating {len(sentences)} × 14 = {total} times")
+    total = len(sentences) * args.pairs_per
+    print(f"Translating {len(sentences)} × {args.pairs_per} = {total} times")
     pbar = tqdm(total=total)
     errors = 0
 
@@ -43,9 +44,8 @@ def main():
     for item in sentences:
         src = item["lang"]
         versions = [{"lang": src, "toxic": item["toxic"]}]
-        for tgt in ALL_LANGS:
-            if tgt == src:
-                continue
+        candidates = [l for l in ALL_LANGS if l != src]
+        for tgt in random.sample(candidates, min(args.pairs_per, len(candidates))):
             try:
                 versions.append({"lang": tgt, "toxic": translator.translate(item["toxic"], src, tgt)})
             except Exception as e:
