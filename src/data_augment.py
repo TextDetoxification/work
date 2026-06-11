@@ -1,6 +1,6 @@
 import json, time, re, argparse
 from pathlib import Path
-from datasets import load_dataset
+from pathlib import Path
 from openai import OpenAI
 
 LANG_NAMES = {"en":"English","zh":"Chinese","ru":"Russian","uk":"Ukrainian","de":"German",
@@ -60,12 +60,18 @@ class LLMAugmenter:
 
 
 def load_pool(languages, n=20):
-    ds = load_dataset("textdetox/multilingual_paradetox")
+    import pandas as pd
     pool = {}
-    for lang in languages:
-        if lang in ds:
-            d = ds[lang].shuffle(42).select(range(min(n, len(ds[lang]))))
-            pool[lang] = [{"toxic":r["toxic_sentence"],"neutral":r["neutral_sentence"]} for r in d]
+    for csv_path in sorted(Path("./data").glob("*.csv")):
+        lang = csv_path.stem
+        if lang == "all_languages" or lang not in languages:
+            continue
+        df = pd.read_csv(csv_path)
+        items = [{"toxic": r["toxic_sentence"], "neutral": r["neutral_sentence"]}
+                 for _, r in df.iterrows()]
+        if len(items) > n:
+            import random; random.seed(42); items = random.sample(items, n)
+        pool[lang] = items
     return pool
 
 
