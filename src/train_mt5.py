@@ -159,7 +159,7 @@ def train(args=None):
     parser.add_argument("--contrastive_temp", type=float, default=TEMPERATURE)
     parser.add_argument("--proj_dim", type=int, default=PROJECTION_DIM)
     parser.add_argument("--augmented_data", default=None)
-    args = parser.parse_args(args if args else [])
+    args = parser.parse_args(args) if args is not None else parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
