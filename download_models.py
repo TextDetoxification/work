@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 MODELS = {
     "mt5":  {"name": "google/mt5-base", "dir": "./models/mt5-base"},
+    "mt5-large": {"name": "google/mt5-large", "dir": "./models/mt5-large"},
     "nllb": {"name": "facebook/nllb-200-distilled-600M", "dir": "./models/nllb-200-distilled-600M"},
 }
 
@@ -24,7 +25,7 @@ def download(key, force=False):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--model", choices=["mt5", "nllb", "all"], default="all")
+    p.add_argument("--model", choices=["mt5", "mt5-large", "nllb", "all"], default="all")
     p.add_argument("--force", action="store_true")
     args = p.parse_args()
     keys = list(MODELS) if args.model == "all" else [args.model]
