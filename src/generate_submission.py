@@ -44,7 +44,6 @@ class DetoxPipeline:
 
         print("[Pipeline] Loading toxic lexicon...")
         self.lexicon = ToxicLexicon(cache_dir=lexicon_cache)
-        self.lexicon.build_toxic_neutral_map(parallel_data_dir="./data")
 
         self.translator = BackTranslator(nllb_model_name=nllb_model, device=self.device)
 
@@ -84,17 +83,21 @@ class DetoxPipeline:
             return result
 
         if lang_type == "trained":
-            marked = self.lexicon.mark_toxic_words(toxic_text, lang)
-            detoxed = self.translator.detoxify(marked, lang=lang)
-            cleaned = self.lexicon.auto_eliminate(
-                detoxed, lang, model=self.translator.detox_model,
-                tokenizer=self.translator.detox_tokenizer)
-            result["neutral_result"] = cleaned
+            text = self.lexicon.mark_toxic_words(toxic_text, lang)
+            for _ in range(3):
+                text = self.translator.detoxify(text, lang=lang)
+                if not self.lexicon.has_toxic_words(text, lang):
+                    break
+            result["neutral_result"] = text
         else:
-            pipe_result = self.translator.pipeline_with_toxic_filter(
-                toxic_text, src_lang=lang, toxic_lexicon=self.lexicon)
-            result["neutral_result"] = pipe_result.get(
-                "neutral_final_cleaned", pipe_result["neutral_final"])
+        else:
+            pipe_result = self.translator.pipeline(toxic_text, src_lang=lang)
+            text = pipe_result["neutral_final"]
+            for _ in range(3):
+                if not self.lexicon.has_toxic_words(text, lang):
+                    break
+                text = self.translator.detoxify(self.lexicon.mark_toxic_words(text, lang), lang=lang)
+            result["neutral_result"] = text
             if verbose:
                 print(f"  英译: {pipe_result.get('toxic_pivot', '')[:150]}")
                 print(f"  去毒: {pipe_result.get('neutral_pivot', '')[:150]}")
