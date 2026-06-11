@@ -36,7 +36,7 @@ class DetoxPipeline:
     """
 
     def __init__(self, detox_model_path="./mt5_detox_lora/final",
-                 lexicon_cache="./toxic_lexicon_cache/toxic_lexicon",
+                 lexicon_cache="./data/toxic_lexicon",
                  nllb_model=None, device=None):
         import torch
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -176,7 +176,7 @@ def main():
     parser.add_argument("--input", required=True, help="测试 TSV 路径")
     parser.add_argument("--output", required=True, help="输出路径 (.tsv 或 .zip)")
     parser.add_argument("--model_path", default="./mt5_detox_lora/final")
-    parser.add_argument("--lexicon_cache", default="./toxic_lexicon_cache/toxic_lexicon")
+    parser.add_argument("--lexicon_cache", default="./data/toxic_lexicon")
     parser.add_argument("--nllb_model", default=None)
     parser.add_argument("--skip_validation", action="store_true")
     args = parser.parse_args()

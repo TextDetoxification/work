@@ -12,7 +12,7 @@ mt5_detox_lora/
 __pycache__/
 *.pyc
 *.pyo
-toxic_lexicon_cache/
+logs/
 .cache/
 
 # ── IDE ──

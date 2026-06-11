@@ -13,7 +13,7 @@ NLLB_LANG_MAP = {
 
 
 class ToxicLexicon:
-    def __init__(self, cache_dir="./toxic_lexicon_cache/toxic_lexicon"):
+    def __init__(self, cache_dir="./data/toxic_lexicon"):
         self.cache_dir = Path(cache_dir)
         self.toxic_sets = {}
         self.toxic_neutral_map = {}
