@@ -17,7 +17,7 @@ DATA_DIR = "./data"
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--format", choices=["csv", "json", "all"], default="all")
-    parser.add_argument("--no-merge", action="store_true")
+    parser.add_argument("--merge", action="store_true", help="额外导出合并文件 all_languages")
     args = parser.parse_args()
 
     # ── 训练数据 ──
@@ -40,7 +40,7 @@ def main():
             df.to_json(f"{DATA_DIR}/{lang}.json", orient="records", force_ascii=False)
         all_rows.extend(rows)
 
-    if not args.no_merge:
+    if args.merge:
         df_all = pd.DataFrame(all_rows)
         if export_csv:
             df_all.to_csv(f"{DATA_DIR}/all_languages.csv", index=False)
