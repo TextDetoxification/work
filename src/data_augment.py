@@ -105,11 +105,22 @@ def main():
     pool = load_pool(trained, n=args.n_samples)
     all_data = []
 
+    # 断点续跑：已有输出文件则跳过已完成的语言
+    done_langs = set()
+    if Path(args.output).exists():
+        with open(args.output, "r", encoding="utf-8") as f:
+            done_langs = {d["lang"] for d in json.load(f) if isinstance(d, dict)}
+        if done_langs:
+            print(f"Resume: skip {done_langs}")
+
     for lang in trained:
-        if lang not in pool:
+        if lang not in pool or lang in done_langs:
             continue
         samples = pool[lang]
+        print(f"\n[{lang}] {len(samples)} samples...")
         for i, pair in enumerate(samples):
+            if i % 20 == 0:
+                print(f"  {i}/{len(samples)}")
             if args.strategy in ("all","toxic_para") and not args.dry_run:
                 d = aug.augment_toxic_paraphrase(pair["toxic"],pair["neutral"],lang,args.n_per_pair)
                 if isinstance(d, list):
@@ -131,6 +142,10 @@ def main():
                     if isinstance(x, dict):
                         x["lang"] = lang
                         all_data.append(x)
+        # 增量保存
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            json.dump(all_data, f, ensure_ascii=False, indent=2)
 
     if args.strategy in ("all","cross_lingual") and not args.dry_run:
         en_samples = pool.get("en", list(pool.values())[0] if pool else [])
