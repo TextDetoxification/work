@@ -90,7 +90,6 @@ class DetoxPipeline:
                     break
             result["neutral_result"] = text
         else:
-        else:
             pipe_result = self.translator.pipeline(toxic_text, src_lang=lang)
             text = pipe_result["neutral_final"]
             for _ in range(3):
