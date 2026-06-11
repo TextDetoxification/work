@@ -112,19 +112,25 @@ def main():
         for i, pair in enumerate(samples):
             if args.strategy in ("all","toxic_para") and not args.dry_run:
                 d = aug.augment_toxic_paraphrase(pair["toxic"],pair["neutral"],lang,args.n_per_pair)
-                for x in d:
-                    x["lang"] = lang
-                all_data.extend(d)
+                if isinstance(d, list):
+                    for x in d:
+                        if isinstance(x, dict):
+                            x["lang"] = lang
+                            all_data.append(x)
             if args.strategy in ("all","neutral_para") and not args.dry_run:
                 d = aug.augment_neutral_paraphrase(pair["toxic"],pair["neutral"],lang,args.n_per_pair)
-                for x in d:
-                    x["lang"] = lang
-                all_data.extend(d)
+                if isinstance(d, list):
+                    for x in d:
+                        if isinstance(x, dict):
+                            x["lang"] = lang
+                            all_data.append(x)
         if args.strategy in ("all","new_pairs") and not args.dry_run:
             d = aug.augment_new_pairs(samples[:5], lang, args.n_new)
-            for x in d:
-                x["lang"] = lang
-            all_data.extend(d)
+            if isinstance(d, list):
+                for x in d:
+                    if isinstance(x, dict):
+                        x["lang"] = lang
+                        all_data.append(x)
 
     if args.strategy in ("all","cross_lingual") and not args.dry_run:
         en_samples = pool.get("en", list(pool.values())[0] if pool else [])
