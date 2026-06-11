@@ -85,6 +85,7 @@ def main():
     p.add_argument("--langs", nargs="+", default=None)
     p.add_argument("--all_languages", action="store_true")
     p.add_argument("--n_per_pair", type=int, default=5)
+    p.add_argument("--n_samples", type=int, default=100)
     p.add_argument("--n_new", type=int, default=20)
     p.add_argument("--n_cross", type=int, default=30)
     p.add_argument("--output", default="./data/augmented.json")
@@ -101,14 +102,14 @@ def main():
 
     client = OpenAI(api_key=args.api_key, base_url=args.base_url)
     aug = LLMAugmenter(client, model=args.model)
-    pool = load_pool(trained)
+    pool = load_pool(trained, n=args.n_samples)
     all_data = []
 
     for lang in trained:
         if lang not in pool:
             continue
         samples = pool[lang]
-        for i, pair in enumerate(samples[:5]):
+        for i, pair in enumerate(samples):
             if args.strategy in ("all","toxic_para") and not args.dry_run:
                 d = aug.augment_toxic_paraphrase(pair["toxic"],pair["neutral"],lang,args.n_per_pair)
                 for x in d:
