@@ -137,7 +137,7 @@ def load_test_data(tsv_path):
 def run_inference(df, pipeline):
     results = []
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="推理中"):
-        toxic_text = str(row["toxic_text"])
+        toxic_text = str(row["toxic_sentence"])
         lang = str(row["lang"]).strip().lower()
         try:
             result = pipeline.detoxify(toxic_text, lang, verbose=False)
@@ -157,8 +157,8 @@ def validate_submission(df, original_df):
     if set(df.columns) != required:
         errors.append(f"列名不匹配: 需要 {required}, 实际 {set(df.columns)}")
     if len(df) == len(original_df):
-        if (df["toxic_text"] != original_df["toxic_text"]).any():
-            errors.append("toxic_text 列与原始不一致!")
+        if (df["toxic_text"] != original_df["toxic_sentence"]).any():
+            errors.append("toxic 列与原始不一致!")
         if (df["lang"] != original_df["lang"]).any():
             errors.append("lang 列与原始不一致!")
     nan_count = df["neutral_text"].isna().sum()
