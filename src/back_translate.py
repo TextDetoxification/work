@@ -50,9 +50,12 @@ class BackTranslator:
         return self.trans_tokenizer.decode(out[0], skip_special_tokens=True)
 
     def load_detox_model(self, model_path, base_model_path=None):
-        from peft import PeftModel
+        from peft import PeftModel, PeftConfig
         if base_model_path is None:
-            base_model_path = self.DEFAULT_MT5_LOCAL if Path(self.DEFAULT_MT5_LOCAL).exists() else self.DEFAULT_MT5_HUB
+            # 从 adapter_config.json 读取基座模型名
+            config = PeftConfig.from_pretrained(model_path)
+            base_model_path = config.base_model_name_or_path
+            print(f"[BackTranslator] Base model from config: {base_model_path}")
         self.detox_tokenizer = AutoTokenizer.from_pretrained(base_model_path)
         base_model = AutoModelForSeq2SeqLM.from_pretrained(
             base_model_path,
