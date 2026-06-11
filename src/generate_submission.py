@@ -83,7 +83,7 @@ class DetoxPipeline:
             return result
 
         if lang_type == "trained":
-            text = self.lexicon.mark_toxic_words(toxic_text, lang)
+            text = toxic_text
             for _ in range(3):
                 text = self.translator.detoxify(text, lang=lang)
                 if not self.lexicon.has_toxic_words(text, lang):
@@ -95,7 +95,7 @@ class DetoxPipeline:
             for _ in range(3):
                 if not self.lexicon.has_toxic_words(text, lang):
                     break
-                text = self.translator.detoxify(self.lexicon.mark_toxic_words(text, lang), lang=lang)
+                text = self.translator.detoxify(text, lang=lang)
             result["neutral_result"] = text
             if verbose:
                 print(f"  英译: {pipe_result.get('toxic_pivot', '')[:150]}")
