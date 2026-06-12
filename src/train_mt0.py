@@ -134,7 +134,8 @@ def preprocess_function(examples, tokenizer):
     return model_inputs
 
 
-def load_augmented_data(aug_path, tokenizer):
+def load_augmented_data_raw(aug_path):
+    """加载增强 JSON 数据，返回原始 Dataset（不 tokenize）"""
     if not os.path.exists(aug_path):
         return None
     with open(aug_path, "r", encoding="utf-8") as f:
@@ -144,9 +145,7 @@ def load_augmented_data(aug_path, tokenizer):
     if not valid:
         return None
     print(f"Loaded {len(valid)} augmented samples")
-    ds = Dataset.from_list(valid)
-    return ds.map(lambda x: preprocess_function(x, tokenizer), batched=True,
-                  remove_columns=ds.column_names)
+    return Dataset.from_list(valid)
 
 
 def load_extra_csv_data(extra_dir, languages=None):
@@ -171,6 +170,40 @@ def load_extra_csv_data(extra_dir, languages=None):
     ds = Dataset.from_list(all_data)
     print(f"Loaded {len(ds)} extra samples from {len(set(d['lang'] for d in all_data))} languages")
     return ds
+
+
+def sample_fill_to_target(source_ds, existing_ds, target_per_lang, lang_col="lang"):
+    """从 source_ds 每种语言采样，使得 existing + sampled 不超过 target_per_lang"""
+    import random
+    random.seed(42)
+
+    # 统计 existing_ds 每种语言已有数量
+    existing_counts = {}
+    for i in range(len(existing_ds)):
+        lang = existing_ds[i][lang_col]
+        existing_counts[lang] = existing_counts.get(lang, 0) + 1
+
+    # 按语言分组 source_ds
+    lang_to_indices = {}
+    for i in range(len(source_ds)):
+        lang = source_ds[i][lang_col]
+        lang_to_indices.setdefault(lang, []).append(i)
+
+    selected = []
+    for lang, idxs in lang_to_indices.items():
+        need = max(0, target_per_lang - existing_counts.get(lang, 0))
+        take = min(len(idxs), need)
+        if take > 0:
+            selected.extend(random.sample(idxs, take))
+
+    selected.sort()
+    taken_per_lang = {}
+    for i in selected:
+        lang = source_ds[i][lang_col]
+        taken_per_lang[lang] = taken_per_lang.get(lang, 0) + 1
+    info = ", ".join(f"{l}={n}" for l, n in sorted(taken_per_lang.items()))
+    print(f"Sampled {len(selected)} extra (fill to ≤{target_per_lang}/lang): {info}")
+    return source_ds.select(selected)
 
 
 def compute_metrics(tokenizer):
@@ -206,13 +239,40 @@ def train(args=None):
     parser.add_argument("--proj_dim", type=int, default=PROJECTION_DIM)
     parser.add_argument("--augmented_data", default=None)
     parser.add_argument("--extra_data", default=None, help="额外 CSV 数据目录，格式同 data/")
+    parser.add_argument("--max_per_lang", type=int, default=0, help="每种语言最多采样数，0=不限制")
     args = parser.parse_args(args) if args is not None else parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Device: {device}")
 
+    # ── 1. 加载原始数据（全保留）──
     split_ds = load_parallel_data(args.languages)
+    raw_train = split_ds["train"]
+    raw_val = split_ds["test"]
 
+    # ── 2. 加载额外数据，按 max_per_lang 补到目标数量 ──
+    if args.extra_data:
+        extra_ds = load_extra_csv_data(args.extra_data, args.languages)
+        if extra_ds is not None:
+            extra_split = extra_ds.train_test_split(test_size=0.2, seed=42)
+            if args.max_per_lang and args.max_per_lang > 0:
+                extra_split["train"] = sample_fill_to_target(
+                    extra_split["train"], raw_train, args.max_per_lang)
+                extra_split["test"] = sample_fill_to_target(
+                    extra_split["test"], raw_val, args.max_per_lang)
+            raw_train = concatenate_datasets([raw_train, extra_split["train"]])
+            raw_val = concatenate_datasets([raw_val, extra_split["test"]])
+            print(f"After extra CSV → Train: {len(raw_train)} | Val: {len(raw_val)}")
+
+    if args.augmented_data:
+        aug_ds = load_augmented_data_raw(args.augmented_data)
+        if aug_ds is not None:
+            if args.max_per_lang and args.max_per_lang > 0:
+                aug_ds = sample_fill_to_target(aug_ds, raw_train, args.max_per_lang)
+            raw_train = concatenate_datasets([raw_train, aug_ds])
+            print(f"After augmented → Train: {len(raw_train)} | Val: {len(raw_val)}")
+
+    # ── 3. 加载模型 & tokenizer ──
     model_path = args.model if Path(args.model).exists() else FALLBACK_MODEL_NAME
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     if tokenizer.pad_token is None:
@@ -227,24 +287,11 @@ def train(args=None):
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
 
-    train_dataset = split_ds["train"].map(lambda x: preprocess_function(x, tokenizer),
-                                          batched=True, remove_columns=split_ds["train"].column_names)
-    val_dataset = split_ds["test"].map(lambda x: preprocess_function(x, tokenizer),
-                                       batched=True, remove_columns=split_ds["test"].column_names)
-
-    if args.extra_data:
-        extra_ds = load_extra_csv_data(args.extra_data, args.languages)
-        if extra_ds is not None:
-            extra_split = extra_ds.train_test_split(test_size=0.2, seed=42)
-            extra_train = extra_split["train"].map(
-                lambda x: preprocess_function(x, tokenizer),
-                batched=True, remove_columns=extra_split["train"].column_names)
-            extra_val = extra_split["test"].map(
-                lambda x: preprocess_function(x, tokenizer),
-                batched=True, remove_columns=extra_split["test"].column_names)
-            train_dataset = concatenate_datasets([train_dataset, extra_train])
-            val_dataset = concatenate_datasets([val_dataset, extra_val])
-            print(f"After merge → Train: {len(train_dataset)} | Val: {len(val_dataset)}")
+    # ── 4. Tokenize ──
+    train_dataset = raw_train.map(lambda x: preprocess_function(x, tokenizer),
+                                  batched=True, remove_columns=raw_train.column_names)
+    val_dataset = raw_val.map(lambda x: preprocess_function(x, tokenizer),
+                              batched=True, remove_columns=raw_val.column_names)
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output, eval_strategy="steps", save_strategy="steps",
@@ -267,10 +314,6 @@ def train(args=None):
         # 注意：不要手动 .half()，autocast 会自动处理混合精度
         # proj_head 不注册到 model 上，避免干扰 save_pretrained
         # 优化器通过 ContrastiveSeq2SeqTrainer.create_optimizer 单独处理
-        if args.augmented_data:
-            aug = load_augmented_data(args.augmented_data, tokenizer)
-            if aug is not None:
-                train_dataset = concatenate_datasets([train_dataset, aug])
 
     trainer = ContrastiveSeq2SeqTrainer(
         proj_head=proj_head, contrastive_weight=args.contrastive_weight,
