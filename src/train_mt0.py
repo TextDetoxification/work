@@ -251,9 +251,12 @@ def train(args=None):
     raw_val = split_ds["test"]
 
     # ── 2. 加载额外数据，按 max_per_lang 补到目标数量 ──
+    lang_feature = raw_train.features["lang"]  # ClassLabel
+
     if args.extra_data:
         extra_ds = load_extra_csv_data(args.extra_data, args.languages)
         if extra_ds is not None:
+            extra_ds = extra_ds.cast_column("lang", lang_feature)
             extra_split = extra_ds.train_test_split(test_size=0.2, seed=42)
             if args.max_per_lang and args.max_per_lang > 0:
                 extra_split["train"] = sample_fill_to_target(
@@ -267,6 +270,7 @@ def train(args=None):
     if args.augmented_data:
         aug_ds = load_augmented_data_raw(args.augmented_data)
         if aug_ds is not None:
+            aug_ds = aug_ds.cast_column("lang", lang_feature)
             if args.max_per_lang and args.max_per_lang > 0:
                 aug_ds = sample_fill_to_target(aug_ds, raw_train, args.max_per_lang)
             raw_train = concatenate_datasets([raw_train, aug_ds])
