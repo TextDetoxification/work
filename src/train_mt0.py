@@ -38,7 +38,7 @@ class ProjectionHead(nn.Module):
 
 
 def mean_pool(hidden_states, attention_mask):
-    mask = attention_mask.unsqueeze(-1).float()
+    mask = attention_mask.unsqueeze(-1).to(dtype=hidden_states.dtype)
     return (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1e-9)
 
 
