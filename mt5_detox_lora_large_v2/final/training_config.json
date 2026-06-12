@@ -1,0 +1,17 @@
+{
+  "base_model": "./models/mt5-large",
+  "lora_r": 32,
+  "lora_alpha": 64,
+  "languages": [
+    "am",
+    "ar",
+    "de",
+    "en",
+    "es",
+    "hi",
+    "ru",
+    "uk",
+    "zh"
+  ],
+  "contrastive": true
+}
