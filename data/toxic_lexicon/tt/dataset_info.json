@@ -1,0 +1,116 @@
+{
+  "builder_name": "parquet",
+  "citation": "",
+  "config_name": "default",
+  "dataset_name": "multilingual_toxic_lexicon",
+  "dataset_size": 4907970,
+  "description": "",
+  "download_size": 2254939,
+  "features": {
+    "text": {
+      "dtype": "string",
+      "_type": "Value"
+    }
+  },
+  "homepage": "",
+  "license": "",
+  "size_in_bytes": 7162909,
+  "splits": {
+    "am": {
+      "name": "am",
+      "num_bytes": 3540,
+      "num_examples": 245,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "es": {
+      "name": "es",
+      "num_bytes": 14683,
+      "num_examples": 1195,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "ru": {
+      "name": "ru",
+      "num_bytes": 4174135,
+      "num_examples": 140517,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "uk": {
+      "name": "uk",
+      "num_bytes": 153865,
+      "num_examples": 7356,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "en": {
+      "name": "en",
+      "num_bytes": 39323,
+      "num_examples": 3386,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "zh": {
+      "name": "zh",
+      "num_bytes": 45303,
+      "num_examples": 3839,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "ar": {
+      "name": "ar",
+      "num_bytes": 6050,
+      "num_examples": 430,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "hi": {
+      "name": "hi",
+      "num_bytes": 2771,
+      "num_examples": 133,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "de": {
+      "name": "de",
+      "num_bytes": 3036,
+      "num_examples": 247,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "it": {
+      "name": "it",
+      "num_bytes": 10139,
+      "num_examples": 815,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "fr": {
+      "name": "fr",
+      "num_bytes": 21216,
+      "num_examples": 1287,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "he": {
+      "name": "he",
+      "num_bytes": 11893,
+      "num_examples": 731,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "hin": {
+      "name": "hin",
+      "num_bytes": 2201,
+      "num_examples": 209,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "tt": {
+      "name": "tt",
+      "num_bytes": 414993,
+      "num_examples": 15629,
+      "dataset_name": "multilingual_toxic_lexicon"
+    },
+    "ja": {
+      "name": "ja",
+      "num_bytes": 4822,
+      "num_examples": 328,
+      "dataset_name": "multilingual_toxic_lexicon"
+    }
+  },
+  "version": {
+    "version_str": "0.0.0",
+    "major": 0,
+    "minor": 0,
+    "patch": 0
+  }
+}
