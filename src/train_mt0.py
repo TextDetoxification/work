@@ -149,6 +149,30 @@ def load_augmented_data(aug_path, tokenizer):
                   remove_columns=ds.column_names)
 
 
+def load_extra_csv_data(extra_dir, languages=None):
+    """加载额外的 CSV 数据目录，格式同 data/ 目录"""
+    extra_path = Path(extra_dir)
+    if not extra_path.exists():
+        print(f"Extra data dir not found: {extra_dir}")
+        return None
+    all_data = []
+    for csv_path in sorted(extra_path.glob("*.csv")):
+        lang = csv_path.stem
+        if lang == "all_languages":
+            continue
+        if languages is not None and lang not in languages:
+            continue
+        df = pd.read_csv(csv_path)
+        for _, row in df.iterrows():
+            all_data.append({"lang": lang, "toxic": row["toxic_sentence"],
+                             "neutral": row["neutral_sentence"]})
+    if not all_data:
+        return None
+    ds = Dataset.from_list(all_data)
+    print(f"Loaded {len(ds)} extra samples from {len(set(d['lang'] for d in all_data))} languages")
+    return ds
+
+
 def compute_metrics(tokenizer):
     try:
         import evaluate
@@ -181,6 +205,7 @@ def train(args=None):
     parser.add_argument("--contrastive_temp", type=float, default=TEMPERATURE)
     parser.add_argument("--proj_dim", type=int, default=PROJECTION_DIM)
     parser.add_argument("--augmented_data", default=None)
+    parser.add_argument("--extra_data", default=None, help="额外 CSV 数据目录，格式同 data/")
     args = parser.parse_args(args) if args is not None else parser.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -206,6 +231,20 @@ def train(args=None):
                                           batched=True, remove_columns=split_ds["train"].column_names)
     val_dataset = split_ds["test"].map(lambda x: preprocess_function(x, tokenizer),
                                        batched=True, remove_columns=split_ds["test"].column_names)
+
+    if args.extra_data:
+        extra_ds = load_extra_csv_data(args.extra_data, args.languages)
+        if extra_ds is not None:
+            extra_split = extra_ds.train_test_split(test_size=0.2, seed=42)
+            extra_train = extra_split["train"].map(
+                lambda x: preprocess_function(x, tokenizer),
+                batched=True, remove_columns=extra_split["train"].column_names)
+            extra_val = extra_split["test"].map(
+                lambda x: preprocess_function(x, tokenizer),
+                batched=True, remove_columns=extra_split["test"].column_names)
+            train_dataset = concatenate_datasets([train_dataset, extra_train])
+            val_dataset = concatenate_datasets([val_dataset, extra_val])
+            print(f"After merge → Train: {len(train_dataset)} | Val: {len(val_dataset)}")
 
     training_args = Seq2SeqTrainingArguments(
         output_dir=args.output, eval_strategy="steps", save_strategy="steps",
