@@ -90,6 +90,7 @@ def main():
     p.add_argument("--n_cross", type=int, default=30)
     p.add_argument("--output", default="./data/augmented.json")
     p.add_argument("--dry_run", action="store_true")
+    p.add_argument("--no_resume", action="store_true", help="忽略已有数据，全量重新生成")
     args = p.parse_args()
 
     if args.all_languages:
@@ -103,15 +104,16 @@ def main():
     client = OpenAI(api_key=args.api_key, base_url=args.base_url)
     aug = LLMAugmenter(client, model=args.model)
     pool = load_pool(trained, n=args.n_samples)
-    all_data = []
 
-    # 断点续跑：已有输出文件则跳过已完成的语言
+    # 断点续跑：加载已有数据，跳过已完成的语言
+    all_data = []
     done_langs = set()
-    if Path(args.output).exists():
+    if not args.no_resume and Path(args.output).exists():
         with open(args.output, "r", encoding="utf-8") as f:
-            done_langs = {d["lang"] for d in json.load(f) if isinstance(d, dict)}
+            all_data = json.load(f)
+        done_langs = {d["lang"] for d in all_data if isinstance(d, dict)}
         if done_langs:
-            print(f"Resume: skip {done_langs}")
+            print(f"Resume: loaded {len(all_data)} samples, skip {done_langs}")
 
     for lang in trained:
         if lang not in pool or lang in done_langs:
