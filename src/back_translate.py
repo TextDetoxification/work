@@ -61,7 +61,7 @@ class BackTranslator:
             base_model_path,
             torch_dtype=torch.float16 if "cuda" in self.device else torch.float32,
             use_safetensors=True)
-        self.detox_model = PeftModel.from_pretrained(base_model, model_path).merge_and_unload()
+        self.detox_model = PeftModel.from_pretrained(base_model, model_path)
         self.detox_model.to(self.device).eval()
 
     def detoxify(self, toxic_text, lang="en"):
