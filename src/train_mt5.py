@@ -58,6 +58,18 @@ class ContrastiveSeq2SeqTrainer(Seq2SeqTrainer):
         self.contrastive_weight = contrastive_weight
         self.temperature = temperature
 
+    def create_optimizer(self):
+        if self.optimizer is not None:
+            return self.optimizer
+        opt_model = self.model
+        model_params = [p for p in opt_model.parameters() if p.requires_grad]
+        groups = [{"params": model_params, "weight_decay": self.args.weight_decay}]
+        if self.proj_head is not None:
+            groups.append({"params": list(self.proj_head.parameters()), "weight_decay": self.args.weight_decay})
+        opt_cls, opt_kwargs = Seq2SeqTrainer.get_optimizer_cls_and_kwargs(self.args)
+        self.optimizer = opt_cls(groups, **opt_kwargs)
+        return self.optimizer
+
     @property
     def _use_contrastive(self):
         return self.model.training and self.proj_head is not None and self.contrastive_weight > 0
@@ -205,7 +217,8 @@ def train(args=None):
                                    dropout=LORA_DROPOUT).to(device)
         if args.fp16 and device == "cuda":
             proj_head = proj_head.half()
-        model.add_module("proj_head", proj_head)
+        # proj_head 不注册到 model 上，避免干扰 save_pretrained
+        # 优化器通过 ContrastiveSeq2SeqTrainer.create_optimizer 单独处理
         if args.augmented_data:
             aug = load_augmented_data(args.augmented_data, tokenizer)
             if aug is not None:
