@@ -264,8 +264,7 @@ def train(args=None):
         print(f"Supervised Contrastive: weight={args.contrastive_weight}, temp={args.contrastive_temp}, dim={args.proj_dim}")
         proj_head = ProjectionHead(hidden_dim=model.config.d_model, proj_dim=args.proj_dim,
                                    dropout=LORA_DROPOUT).to(device)
-        if args.fp16 and device == "cuda":
-            proj_head = proj_head.half()
+        # 注意：不要手动 .half()，autocast 会自动处理混合精度
         # proj_head 不注册到 model 上，避免干扰 save_pretrained
         # 优化器通过 ContrastiveSeq2SeqTrainer.create_optimizer 单独处理
         if args.augmented_data:
