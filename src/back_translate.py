@@ -15,8 +15,8 @@ NLLB_TO_SHORT = {v: k for k, v in LANG_TO_NLLB.items()}
 class BackTranslator:
     DEFAULT_NLLB_LOCAL = "./models/nllb-200-distilled-600M"
     DEFAULT_NLLB_HUB = "facebook/nllb-200-distilled-600M"
-    DEFAULT_MT5_LOCAL = "./models/mt5-base"
-    DEFAULT_MT5_HUB = "google/mt5-base"
+    DEFAULT_MT0_LOCAL = "./models/mt0-large"
+    DEFAULT_MT0_HUB = "bigscience/mt0-large"
 
     def __init__(self, nllb_model_name=None, device=None):
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -68,8 +68,15 @@ class BackTranslator:
         inputs = self.detox_tokenizer(f"detoxify: {toxic_text}", return_tensors="pt",
                                        truncation=True, max_length=256).to(self.device)
         with torch.no_grad():
-            out = self.detox_model.generate(**inputs, max_new_tokens=256, num_beams=5,
-                                            early_stopping=True, no_repeat_ngram_size=3)
+            out = self.detox_model.generate(
+                **inputs,
+                max_new_tokens=256,
+                num_beams=5,
+                early_stopping=True,
+                no_repeat_ngram_size=3,
+                repetition_penalty=1.5,
+                length_penalty=0.8,
+            )
         return self.detox_tokenizer.decode(out[0], skip_special_tokens=True)
 
     def pipeline(self, toxic_text, src_lang, pivot_lang="en"):

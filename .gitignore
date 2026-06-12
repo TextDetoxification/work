@@ -4,6 +4,7 @@ data/
 # ── Models ──
 models/
 mt5_detox_lora/
+mt0_detox_lora/
 *.pt
 *.bin
 *.safetensors

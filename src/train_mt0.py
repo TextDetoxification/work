@@ -12,14 +12,14 @@ from transformers import (
 from peft import LoraConfig, get_peft_model, TaskType
 
 
-DEFAULT_MODEL_PATH = "./models/mt5-base"
-FALLBACK_MODEL_NAME = "google/mt5-base"
-OUTPUT_DIR = "./mt5_detox_lora"
+DEFAULT_MODEL_PATH = "./models/mt0-large"
+FALLBACK_MODEL_NAME = "bigscience/mt0-large"
+OUTPUT_DIR = "./mt0_detox_lora"
 
-LORA_R, LORA_ALPHA, LORA_DROPOUT = 16, 32, 0.1
-LORA_TARGET_MODULES = ["q", "v"]
+LORA_R, LORA_ALPHA, LORA_DROPOUT = 32, 64, 0.1
+LORA_TARGET_MODULES = ["q", "k", "v", "o"]
 
-CONTRASTIVE_WEIGHT, TEMPERATURE, PROJECTION_DIM = 0.1, 0.05, 256
+CONTRASTIVE_WEIGHT, TEMPERATURE, PROJECTION_DIM = 0.15, 0.05, 256
 
 BATCH_SIZE, GRAD_ACCUM_STEPS = 8, 4
 LEARNING_RATE, NUM_EPOCHS, WEIGHT_DECAY = 3e-4, 15, 0.01
@@ -81,13 +81,23 @@ class ContrastiveSeq2SeqTrainer(Seq2SeqTrainer):
         if not self._use_contrastive:
             return (ce_loss, outputs) if return_outputs else ce_loss
 
-        h1 = outputs.encoder_last_hidden_state
-        h2 = model.get_encoder()(input_ids=inputs["input_ids"],
-                                  attention_mask=inputs["attention_mask"],
-                                  return_dict=True).last_hidden_state
-        z1 = self.proj_head(mean_pool(h1, inputs["attention_mask"]))
-        z2 = self.proj_head(mean_pool(h2, inputs["attention_mask"]))
-        total = ce_loss + self.contrastive_weight * nt_xent_loss(z1, z2, self.temperature)
+        # ── 有监督对比学习：toxic 表示 → 靠近其 neutral 表示 ──
+        # toxic 编码（来自本次 forward 的 encoder 输出）
+        h_toxic = outputs.encoder_last_hidden_state
+
+        # neutral 编码：把 labels（neutral token IDs）送入同一个 encoder
+        neutral_ids = inputs["labels"].clone()
+        neutral_ids[neutral_ids == -100] = model.config.pad_token_id
+        neutral_mask = (neutral_ids != model.config.pad_token_id).long()
+
+        h_neutral = model.get_encoder()(
+            input_ids=neutral_ids, attention_mask=neutral_mask, return_dict=True
+        ).last_hidden_state
+
+        z_toxic = self.proj_head(mean_pool(h_toxic, inputs["attention_mask"]))
+        z_neutral = self.proj_head(mean_pool(h_neutral, neutral_mask))
+
+        total = ce_loss + self.contrastive_weight * nt_xent_loss(z_toxic, z_neutral, self.temperature)
         return (total, outputs) if return_outputs else total
 
 
@@ -212,7 +222,7 @@ def train(args=None):
     use_contrastive = args.contrastive_weight > 0
     proj_head = None
     if use_contrastive:
-        print(f"SimCSE: weight={args.contrastive_weight}, temp={args.contrastive_temp}, dim={args.proj_dim}")
+        print(f"Supervised Contrastive: weight={args.contrastive_weight}, temp={args.contrastive_temp}, dim={args.proj_dim}")
         proj_head = ProjectionHead(hidden_dim=model.config.d_model, proj_dim=args.proj_dim,
                                    dropout=LORA_DROPOUT).to(device)
         if args.fp16 and device == "cuda":
@@ -253,8 +263,10 @@ def train(args=None):
         inputs = tokenizer(f"detoxify: {sample['toxic']}", return_tensors="pt",
                            truncation=True, max_length=MAX_LENGTH).to(device)
         with torch.no_grad():
-            pred = tokenizer.decode(model.generate(**inputs, max_new_tokens=MAX_LENGTH,
-                                     num_beams=5, early_stopping=True)[0], skip_special_tokens=True)
+            pred = tokenizer.decode(model.generate(
+                **inputs, max_new_tokens=MAX_LENGTH, num_beams=5, early_stopping=True,
+                no_repeat_ngram_size=3, repetition_penalty=1.5, length_penalty=0.8,
+            )[0], skip_special_tokens=True)
         print(f"[{sample['lang']}] {sample['toxic'][:60]} → {pred[:60]}")
 
 

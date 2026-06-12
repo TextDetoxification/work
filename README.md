@@ -1,6 +1,6 @@
-# mT5 多语言文本去毒化
+# mt0 多语言文本去毒化
 
-基于 mT5-base + LoRA + SimCSE 对比学习的多语言 toxic→neutral 文本去毒系统，参加 [Text Detoxification @ CodaBench](https://www.codabench.org/competitions/15765/)。
+基于 mt0-large + LoRA + 有监督对比学习的多语言 toxic→neutral 文本去毒系统，参加 [Text Detoxification @ CodaBench](https://www.codabench.org/competitions/15765/)。
 
 覆盖 15 种语言：am, ar, de, en, es, fr, he, hi, hin, it, ja, ru, tt, uk, zh。
 
@@ -48,10 +48,10 @@ python export_dataset.py
 python -m src.cross_lingual_data --device cuda
 
 # 5. 训练
-python -m src.train_mt5 \
-  --contrastive_weight 0.1 \
+python -m src.train_mt0 \
+  --contrastive_weight 0.15 \
   --cross_lingual_data ./data/cross_lingual_pairs.json \
-  --cross_lingual_weight 0.1
+  --cross_lingual_weight 0.15
 
 # 6. 生成提交
 python -m src.generate_submission --input test.tsv --output submission.zip
@@ -63,7 +63,7 @@ python -m src.generate_submission --input test.tsv --output submission.zip
 ├── download_models.py          # 下载 mT5 + NLLB 模型
 ├── export_dataset.py           # 导出训练数据 → CSV
 ├── src/
-│   ├── train_mt5.py            # 训练脚本 (含对比学习)
+│   ├── train_mt0.py            # 训练脚本 (含对比学习)
 │   ├── cross_lingual_data.py   # NLLB 跨语言预翻译
 │   ├── back_translate.py       # 回译管道 (NLLB 翻译)
 │   ├── generate_submission.py  # 推理 + 提交文件生成
@@ -71,39 +71,36 @@ python -m src.generate_submission --input test.tsv --output submission.zip
 │   └── data_augment.py         # LLM 数据增强
 ├── data/                       # 训练数据 CSV + 跨语言 JSON
 ├── models/                     # 下载的预训练模型
-└── mt5_detox_lora/             # 训练输出 (LoRA 权重)
+└── mt0_detox_lora/             # 训练输出 (LoRA 权重)
 ```
 
 ## 训练策略
 
 ### 核心模型
 
-**mT5-base (580M)** + **LoRA** (r=16, α=32, 目标 q/v, 仅 0.3% 参数可训)
+**mt0-large (1.2B)** + **LoRA** (r=32, α=64, 目标 q/k/v/o, 仅 ~0.5% 参数可训)
 
 ### 损失函数
 
 ```
-total_loss = CE_loss + λ₁ · Contrastive₁ + λ₂ · Contrastive₂
+total_loss = CE_loss + λ · Contrastive
 
 CE_loss:          标准 Seq2Seq 交叉熵 (toxic → neutral)
-Contrastive₁:     无监督对比 —— 同一输入 × 2次 dropout → 表征一致
-Contrastive₂:     跨语言对比 —— 同一 toxic 意图 × 不同语言 → 表征一致
+Contrastive:      有监督对比 —— toxic 编码 → 拉近对应的 neutral 编码
 ```
-
-> 两个对比损失的实现相同（NT-Xent），区别仅在于正样本对的来源：前者来自同一句话两次编码的 dropout 差异，后者来自 NLLB 翻译产生的跨语言版本。两者共享同一个 ProjectionHead 和 Encoder，都属于对比学习。```
 
 ### 推理管道
 
 ```
-训练语言 (9种): toxic → mT5 直接去毒 → 有害词消除 → 输出
-零资源语言 (6种): toxic → NLLB→英语 → mT5 去毒 → NLLB→源语言 → 有害词消除 → 输出
+训练语言 (9种): toxic → mt0 直接去毒 → 有害词消除 → 输出
+零资源语言 (6种): toxic → NLLB→英语 → mt0 去毒 → NLLB→源语言 → 有害词消除 → 输出
 ```
 
 ## 关键参数
 
 | 参数                       | 默认值 | 说明                        |
 | -------------------------- | ------ | --------------------------- |
-| `--contrastive_weight`   | 0.1    | SimCSE 对比损失权重，0=禁用 |
+| `--contrastive_weight`   | 0.15   | 有监督对比损失权重，0=禁用 |
 | `--contrastive_temp`     | 0.05   | NT-Xent 温度系数            |
 | `--cross_lingual_weight` | 0.1    | 跨语言对比损失权重          |
 | `--batch_size`           | 8      | 每卡 batch                  |
@@ -147,7 +144,7 @@ python -m src.data_augment --api_key YOUR_KEY --strategy all --all_languages
 
 ```bash
 # 训练时合并增强数据
-python -m src.train_mt5 --augmented_data ./data/augmented.json ...
+python -m src.train_mt0 --augmented_data ./data/augmented.json ...
 ```
 
 **结论**：效果不错但需要 API 费用。建议至少跑 `neutral_para` 策略。
@@ -168,6 +165,6 @@ python -m src.train_mt5 --augmented_data ./data/augmented.json ...
 
 | 模式         | GPU 显存 | 训练时间         |
 | ------------ | -------- | ---------------- |
-| mT5 + LoRA   | ≥8GB    | ~15 分钟 (A40)   |
+| mt0 + LoRA   | ≥12GB   | ~25 分钟 (A40)   |
 | 仅推理 (CPU) | 无需 GPU | ~2 秒/条         |
 | NLLB 翻译    | ≥6GB    | ~9 分钟 / 3600条 |
