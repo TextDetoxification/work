@@ -13,7 +13,7 @@ class LLMAugmenter:
     def __init__(self, client, model="deepseek-chat", temperature=0.8):
         self.client, self.model, self.temperature = client, model, temperature
 
-    def _call(self, system, user, retries=2):
+    def _call(self, system, user, retries=5):
         for i in range(retries):
             try:
                 return self.client.chat.completions.create(
@@ -22,13 +22,20 @@ class LLMAugmenter:
                 ).choices[0].message.content
             except Exception as e:
                 msg = str(e)
-                if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
-                    print(f"\n  ⚠ API配额已用完，当前进度已保存，等配额恢复后重跑同一命令继续")
-                    raise SystemExit(0)
+                is_limit = "429" in msg or "quota" in msg.lower() or "rate" in msg.lower()
+                if is_limit and i < retries - 1:
+                    wait = 10 * (i + 1)
+                    print(f"\n  ⚠ 触发限流，等待 {wait}s 后重试...")
+                    time.sleep(wait)
+                    continue
                 if i < retries - 1:
                     time.sleep(2)
                 else:
-                    print(f"  ⚠ 调用失败: {msg[:100]}")
+                    msg_short = msg[:150].replace('\n', ' ')
+                    print(f"  ⚠ 调用失败: {msg_short}")
+                    if is_limit:
+                        print(f"  → 配额可能已用完，当前进度已保存，等配额恢复后重跑")
+                        raise SystemExit(0)
                     return None
 
     def _parse_json(self, text):
@@ -127,6 +134,8 @@ def main():
         samples = pool[lang]
         print(f"\n[{lang}] {len(samples)} samples...")
         for i, pair in enumerate(samples):
+            if i > 0:
+                time.sleep(2)  # 避免触发API频率限制
             if i % 10 == 0:
                 print(f"  {i}/{len(samples)}")
             if args.strategy in ("all","toxic_para") and not args.dry_run:
