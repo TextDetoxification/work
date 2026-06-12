@@ -13,7 +13,7 @@ class LLMAugmenter:
     def __init__(self, client, model="deepseek-chat", temperature=0.8):
         self.client, self.model, self.temperature = client, model, temperature
 
-    def _call(self, system, user, retries=3):
+    def _call(self, system, user, retries=2):
         for i in range(retries):
             try:
                 return self.client.chat.completions.create(
@@ -21,9 +21,15 @@ class LLMAugmenter:
                     messages=[{"role":"system","content":system},{"role":"user","content":user}]
                 ).choices[0].message.content
             except Exception as e:
-                if i == retries - 1:
-                    raise
-                time.sleep(2 ** i)
+                msg = str(e)
+                if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+                    print(f"\n  ⚠ API配额已用完，当前进度已保存，等配额恢复后重跑同一命令继续")
+                    raise SystemExit(0)
+                if i < retries - 1:
+                    time.sleep(2)
+                else:
+                    print(f"  ⚠ 调用失败: {msg[:100]}")
+                    return None
 
     def _parse_json(self, text):
         try: return json.loads(text)
@@ -121,7 +127,7 @@ def main():
         samples = pool[lang]
         print(f"\n[{lang}] {len(samples)} samples...")
         for i, pair in enumerate(samples):
-            if i % 20 == 0:
+            if i % 10 == 0:
                 print(f"  {i}/{len(samples)}")
             if args.strategy in ("all","toxic_para") and not args.dry_run:
                 d = aug.augment_toxic_paraphrase(pair["toxic"],pair["neutral"],lang,args.n_per_pair)
