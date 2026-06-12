@@ -83,7 +83,7 @@ class ContrastiveSeq2SeqTrainer(Seq2SeqTrainer):
 
         # ── 有监督对比学习：toxic 表示 → 靠近其 neutral 表示 ──
         # toxic 编码（来自本次 forward 的 encoder 输出）
-        h_toxic = outputs.encoder_last_hidden_state
+        h_toxic = outputs.encoder_last_hidden_state.float()
 
         # neutral 编码：把 labels（neutral token IDs）送入同一个 encoder
         neutral_ids = inputs["labels"].clone()
@@ -92,7 +92,7 @@ class ContrastiveSeq2SeqTrainer(Seq2SeqTrainer):
 
         h_neutral = model.get_encoder()(
             input_ids=neutral_ids, attention_mask=neutral_mask, return_dict=True
-        ).last_hidden_state
+        ).last_hidden_state.float()
 
         z_toxic = self.proj_head(mean_pool(h_toxic, inputs["attention_mask"]))
         z_neutral = self.proj_head(mean_pool(h_neutral, neutral_mask))
