@@ -29,6 +29,8 @@ class ToxicLexicon:
         for lang in ds:
             self.toxic_sets[lang] = {r["text"].strip().lower() for r in ds[lang] if r["text"].strip()}
         print(f"Loaded {sum(len(s) for s in self.toxic_sets.values())} toxic words in {len(self.toxic_sets)} langs")
+        # 注意: build_toxic_neutral_map 扫描 9x400 句要约 24min，默认关闭
+        # 需要时手动调用 lex.build_toxic_neutral_map()
 
     def _normalize(self, lang):
         return lang if lang in self.toxic_sets else NLLB_LANG_MAP.get(lang, None)

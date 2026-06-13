@@ -82,25 +82,20 @@ class DetoxPipeline:
             result["neutral_result"] = "[ERROR: model not loaded]"
             return result
 
-        # 所有语言统一直接去毒（mt0 支持 46 种语言）
-        text = toxic_text
-        for _ in range(3):
-            text = self.translator.detoxify(text, lang=lang)
-            if not self.lexicon.has_toxic_words(text, lang):
-                break
+        # mt0 一次去毒 + 有害词表后处理兜底
+        text = self.translator.detoxify(toxic_text, lang=lang)
+        text = self.lexicon.auto_eliminate(
+            text, lang, model=self.translator.detox_model,
+            tokenizer=self.translator.detox_tokenizer)
         result["neutral_result"] = text
-        result["lang_type"] = "direct"  # override
-        # 所有语言统一直接去毒，跳过翻译管道
+        result["lang_type"] = "direct"
 
-        remaining = self.lexicon.detect_toxic_words(result["neutral_result"], lang)
+        remaining = self.lexicon.detect_toxic_words(text, lang)
         result["toxic_words_remaining"] = [w for _, _, w in remaining]
 
         if verbose:
-            print(f"  最终: {result['neutral_result'][:150]}")
-            if remaining:
-                print(f"  残留: {result['toxic_words_remaining']}")
-            else:
-                print(f"  清除完毕")
+            print(f"  最终: {text[:150]}")
+            print(f"  {'清除完毕' if not remaining else '残留:' + str(result['toxic_words_remaining'])}")
 
         return result
 
