@@ -82,25 +82,15 @@ class DetoxPipeline:
             result["neutral_result"] = "[ERROR: model not loaded]"
             return result
 
-        if lang_type == "trained":
-            text = toxic_text
-            for _ in range(3):
-                text = self.translator.detoxify(text, lang=lang)
-                if not self.lexicon.has_toxic_words(text, lang):
-                    break
-            result["neutral_result"] = text
-        else:
-            pipe_result = self.translator.pipeline(toxic_text, src_lang=lang)
-            text = pipe_result["neutral_final"]
-            for _ in range(3):
-                if not self.lexicon.has_toxic_words(text, lang):
-                    break
-                text = self.translator.detoxify(text, lang=lang)
-            result["neutral_result"] = text
-            if verbose:
-                print(f"  英译: {pipe_result.get('toxic_pivot', '')[:150]}")
-                print(f"  去毒: {pipe_result.get('neutral_pivot', '')[:150]}")
-                print(f"  回译: {pipe_result.get('neutral_final', '')[:150]}")
+        # 所有语言统一直接去毒（mt0 支持 46 种语言）
+        text = toxic_text
+        for _ in range(3):
+            text = self.translator.detoxify(text, lang=lang)
+            if not self.lexicon.has_toxic_words(text, lang):
+                break
+        result["neutral_result"] = text
+        result["lang_type"] = "direct"  # override
+        # 所有语言统一直接去毒，跳过翻译管道
 
         remaining = self.lexicon.detect_toxic_words(result["neutral_result"], lang)
         result["toxic_words_remaining"] = [w for _, _, w in remaining]
@@ -108,9 +98,9 @@ class DetoxPipeline:
         if verbose:
             print(f"  最终: {result['neutral_result'][:150]}")
             if remaining:
-                print(f"  ⚠ 残留: {result['toxic_words_remaining']}")
+                print(f"  残留: {result['toxic_words_remaining']}")
             else:
-                print(f"  ✅ 清除完毕")
+                print(f"  清除完毕")
 
         return result
 
@@ -134,11 +124,18 @@ def load_test_data(tsv_path):
     return df
 
 
-def run_inference(df, pipeline):
-    results = []
+def run_inference(df, pipeline, output_tsv):
+    skip = set()
+    if os.path.exists(output_tsv):
+        done = pd.read_csv(output_tsv, sep="\t")
+        skip = set(zip(done["toxic_text"], done["lang"]))
+        print(f"断点续跑: 已跳过 {len(skip)} 条")
+    results = [] if not os.path.exists(output_tsv) else done.to_dict("records")
     for idx, row in tqdm(df.iterrows(), total=len(df), desc="推理中"):
         toxic_text = str(row["toxic_sentence"])
         lang = str(row["lang"]).strip().lower()
+        if (toxic_text, lang) in skip:
+            continue
         try:
             result = pipeline.detoxify(toxic_text, lang, verbose=False)
             neutral = result.get("neutral_result", toxic_text)
@@ -146,7 +143,11 @@ def run_inference(df, pipeline):
             print(f"  [错误] 第 {idx} 行 ({lang}): {e}")
             neutral = toxic_text
         results.append({"toxic_text": toxic_text, "neutral_text": neutral, "lang": lang})
-    return pd.DataFrame(results)
+        if len(results) % 100 == 0:
+            pd.DataFrame(results).to_csv(output_tsv, sep="\t", index=False)
+    df_out = pd.DataFrame(results)
+    df_out.to_csv(output_tsv, sep="\t", index=False)
+    return df_out
 
 
 def validate_submission(df, original_df):
@@ -191,13 +192,13 @@ def main():
                              nllb_model=args.nllb_model)
 
     print(f"\n批量推理 ({len(original_df)} 条)...")
-    result_df = run_inference(original_df, pipeline)
+    output_path = Path(args.output)
+    tsv_path = output_path.with_suffix(".tsv") if output_path.suffix == ".zip" else output_path
+    result_df = run_inference(original_df, pipeline, str(tsv_path))
 
     if not args.skip_validation:
         validate_submission(result_df, original_df)
 
-    output_path = Path(args.output)
-    tsv_path = output_path.with_suffix(".tsv") if output_path.suffix == ".zip" else output_path
     result_df.to_csv(tsv_path, sep="\t", index=False, encoding="utf-8")
     print(f"\nTSV 已保存: {tsv_path} ({len(result_df)} 条)")
 
